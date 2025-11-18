@@ -1,4 +1,11 @@
 # src/preprocess.py
+"""
+Preprocessing utilities:
+- build_binary_target: f_FPro_class -> binary
+- select_columns: numeric & categorical feature sets
+- make_preprocess_pipeline: imputing + scaling + one-hot
+"""
+
 import pandas as pd
 import numpy as np
 from sklearn.compose import ColumnTransformer
@@ -21,15 +28,17 @@ NUMERIC_CANDIDATES = [
     "price", "price per cal", "package_weight",
     "Protein", "Total Fat", "Carbohydrate", "Sugars, total",
     "Fiber, total dietary", "Calcium", "Iron", "Sodium",
-    "Cholesterol", "Fatty acids, total saturated"
+    "Cholesterol", "Fatty acids, total saturated",
 ]
 
 
-def build_binary_target(y):
+def build_binary_target(y: pd.Series) -> pd.Series:
+    """Binary target: 1 = non-UPF (0,1,2), 0 = UPF (3)."""
     return y.map(lambda x: 0 if x == 3 else 1)
 
 
-def select_columns(df):
+def select_columns(df: pd.DataFrame):
+    """Return lists of numeric and categorical feature columns (present in df)."""
     numeric = [c for c in NUMERIC_CANDIDATES if c in df.columns]
     categorical = [c for c in RAW_CATEGORICAL if c in df.columns]
     return numeric, categorical
@@ -42,41 +51,14 @@ def make_preprocess_pipeline(numeric_cols, categorical_cols, scale=True):
 
     cat_steps = [
         ("imputer", SimpleImputer(strategy="most_frequent")),
-        ("onehot", OneHotEncoder(handle_unknown="ignore", sparse_output=False))
+        ("onehot", OneHotEncoder(handle_unknown="ignore", sparse_output=False)),
     ]
 
     return ColumnTransformer(
         transformers=[
             ("num", Pipeline(num_steps), numeric_cols),
-            ("cat", Pipeline(cat_steps), categorical_cols)
+            ("cat", Pipeline(cat_steps), categorical_cols),
         ],
         remainder="drop",
-        verbose_feature_names_out=False
+        verbose_feature_names_out=False,
     )
-
-
-def apply_imbalance(X, y, method=None):
-    if method is None:
-        return X, y
-    if method == "smote" and SMOTE is not None:
-        return SMOTE().fit_resample(X, y)
-    if method == "ros" and RandomOverSampler is not None:
-        return RandomOverSampler().fit_resample(X, y)
-    return X, y
-
-
-def preprocess_dataframe(df, imbalance="smote", scale=True):
-    y = build_binary_target(df[TARGET_COL])
-
-    numeric_cols, categorical_cols = select_columns(df)
-
-    X_df = df.drop(columns=ID_COLS + [TARGET_COL])
-
-    pre = make_preprocess_pipeline(numeric_cols, categorical_cols, scale=scale)
-    X = pre.fit_transform(X_df)
-
-    X, y = apply_imbalance(X, y, imbalance)
-
-    feat_names = pre.get_feature_names_out()
-
-    return X, y.to_numpy(), pre, feat_names
