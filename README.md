@@ -1,6 +1,6 @@
 # Ultra-Processed Food Binary Classifier
 
-## 🧠 Project Overview
+##  Project Overview
 This project builds binary classifiers to identify **non–ultra-processed foods (class 1)** versus **ultra-processed foods (class 0)** from nutritional and categorical data.
 
 ### Positive Class (1):
@@ -11,9 +11,9 @@ Ultra-processed foods → label `[3]`
 
 ---
 
-## 📂 Folder Structure
+##  Folder Structure
 See `src/` for preprocessing, training, and evaluation scripts.
 
-## 🚀 How to Run
+##  How to Run
 ```bash
-python src/train_model.py
+python src/run_pipeline.py train.csv
