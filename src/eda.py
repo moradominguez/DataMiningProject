@@ -194,16 +194,41 @@ def run_eda(df: pd.DataFrame, outdir: str = "reports") -> dict:
     # 10. JOINT PLOTS (important nutrient comparisons)
     # ============================================================
     joint_pairs = [
-        ("Protein", "Total Fat"),
-        ("Carbohydrate", "Sugars, total"),
-        ("Sodium", "Cholesterol"),
-    ]
+            ("Protein", "Total Fat"),
+            ("Carbohydrate", "Sugars, total"),
+            ("Sodium", "Cholesterol"),
+        ]
 
     for x, y in joint_pairs:
-        if x in df.columns and y in df.columns:
-            sns.jointplot(data=df_tmp, x=x, y=y, kind="kde", hue="binary_target")
-            plt.savefig(f"{outdir}/06_jointplot_{x}_{y}.png")
-            plt.close()
+        if x in df_tmp.columns and y in df_tmp.columns:
+            try:
+                # Try KDE jointplot
+                jp = sns.jointplot(
+                    data=df_tmp,
+                    x=x,
+                    y=y,
+                    kind="kde",
+                    hue="binary_target",
+                    fill=True,
+                    thresh=0.05,
+                )
+                jp.figure.suptitle(f"Joint KDE: {x} vs {y}", y=1.02)
+                jp.figure.savefig(f"{outdir}/06_jointplot_kde_{x}_{y}.png")
+                plt.close()
+            except Exception as e:
+                # Fallback: scatter + hist (always works)
+                print(f"[EDA] KDE jointplot failed for {x} vs {y}: {e}")
+                jp = sns.jointplot(
+                    data=df_tmp,
+                    x=x,
+                    y=y,
+                    hue="binary_target",
+                    kind="scatter",
+                    alpha=0.4,
+                )
+                jp.figure.suptitle(f"Joint Scatter: {x} vs {y}", y=1.02)
+                jp.figure.savefig(f"{outdir}/06_jointplot_scatter_{x}_{y}.png")
+                plt.close()
 
     # ============================================================
     # 11. Z-SCORE OUTLIER ANALYSIS
