@@ -17,8 +17,9 @@ TARGET_COL = "f_FPro_class"
 
 RAW_CATEGORICAL = ["name", "store", "food category", "brand"]
 
+# FIXED: real dataset uses "price percal"
 NUMERIC_CANDIDATES = [
-    "price", "price per cal", "package_weight",
+    "price", "price percal", "package_weight",
     "Protein", "Total Fat", "Carbohydrate", "Sugars, total",
     "Fiber, total dietary", "Calcium", "Iron", "Sodium",
     "Cholesterol", "Fatty acids, total saturated",
@@ -83,12 +84,10 @@ def run_eda(df: pd.DataFrame, outdir: str = "reports") -> dict:
     plt.close()
 
     # ───────── 1.3 DESCRIPTIVE STATS ─────────
-    # overall stats
     desc_stats = df[numeric_cols].describe().T
     desc_stats.to_csv(f"{outdir}/03_descriptive_stats_overall.csv")
     results["descriptive_overall"] = desc_stats
 
-    # by binary class stats
     df_tmp = df.copy()
     df_tmp["binary_target"] = y_bin
     by_class = df_tmp.groupby("binary_target")[numeric_cols].describe().T
@@ -104,7 +103,7 @@ def run_eda(df: pd.DataFrame, outdir: str = "reports") -> dict:
         plt.savefig(f"{outdir}/hist_{col.replace(' ', '_')}.png")
         plt.close()
 
-    # boxplots by binary class
+    # boxplots
     for col in numeric_cols:
         plt.figure(figsize=(6, 4))
         sns.boxplot(x=df_tmp["binary_target"], y=df_tmp[col])

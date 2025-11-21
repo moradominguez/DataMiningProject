@@ -24,8 +24,9 @@ ID_COLS = ["original_ID"]
 
 RAW_CATEGORICAL = ["name", "store", "food category", "brand"]
 
+# FIXED: real dataset uses "price percal"
 NUMERIC_CANDIDATES = [
-    "price", "price per cal", "package_weight",
+    "price", "price percal", "package_weight",
     "Protein", "Total Fat", "Carbohydrate", "Sugars, total",
     "Fiber, total dietary", "Calcium", "Iron", "Sodium",
     "Cholesterol", "Fatty acids, total saturated",
