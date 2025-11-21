@@ -36,7 +36,6 @@ from src.preprocess import (
     make_preprocess_pipeline,
 )
 
-
 # ─────────────────────────────
 # Baseline classifier (no learning)
 # ─────────────────────────────
@@ -62,7 +61,6 @@ class BaselineClassifier:
         else:
             raise ValueError("Strategy must be 'majority' or 'random'.")
 
-
 # ─────────────────────────────
 # Metrics helper
 # ─────────────────────────────
@@ -81,7 +79,6 @@ def compute_metrics(y_true, y_pred, y_prob=None):
     else:
         m["roc_auc"] = np.nan
     return m
-
 
 # ─────────────────────────────
 # Train/Val/Test preprocessing

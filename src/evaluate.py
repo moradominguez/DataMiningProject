@@ -6,10 +6,8 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 from sklearn.metrics import (
-    confusion_matrix, ConfusionMatrixDisplay,
-    roc_curve, roc_auc_score
+    confusion_matrix, ConfusionMatrixDisplay, roc_curve, roc_auc_score
 )
-
 
 def evaluate_model(model, X_test, y_test, name, outdir="reports"):
     pred = model.predict(X_test)
