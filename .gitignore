@@ -18,3 +18,5 @@ models/*.pkl
 # VSCode / IDE
 .vscode/
 .idea/
+
+reports/
