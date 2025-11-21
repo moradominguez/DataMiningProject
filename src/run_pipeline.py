@@ -17,16 +17,15 @@ import os
 import pandas as pd
 from sklearn.model_selection import train_test_split
 
-from src.eda import run_eda
-from src.preprocess import build_binary_target, TARGET_COL
-from src.train_model import (
+from eda import run_eda
+from preprocess import build_binary_target, TARGET_COL
+from train_model import (
     detect_outliers_kmeans,
     train_models_for_scenario,
 )
 
-# 🔁 CHANGE THIS TO YOUR REAL TEAM ID
+# CHANGE THIS TO YOUR REAL TEAM ID
 TEAM_ID = 12345
-
 
 # ─────────────────────────────────────────────────────────────
 # Stratified Train/Val/Test Split
@@ -63,7 +62,6 @@ def stratified_train_val_test_split(df: pd.DataFrame, test_size=0.2, val_size=0.
     y_test  = y_bin.loc[idx_test].to_numpy()
 
     return df_train, y_train, df_val, y_val, df_test, y_test
-
 
 # ─────────────────────────────────────────────────────────────
 # Main Pipeline
@@ -144,7 +142,6 @@ def main(input_filename: str, outdir: str = "reports"):
     print(f"Compare:")
     print(f"- {outdir}/model_performance_test_original.csv")
     print(f"- {outdir}/model_performance_test_outlier_removed.csv")
-
 
 # ─────────────────────────────────────────────────────────────
 # CLI — positional argument
