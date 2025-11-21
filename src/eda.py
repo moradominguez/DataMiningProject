@@ -1,377 +1,206 @@
-# src/eda.py
 """
-Professional EDA Module
-Ultra-Processed Food Classification Project
+Simple, clean and professor-aligned EDA module for the Ultra-Processed Food Classification project.
 
-Includes:
-- Data structure summary
+Generates:
+- Data structure overview
 - Raw + binary target distribution
 - Numeric stats (overall + by class)
-- Missing-value heatmap (percentage per feature)
+- Categorical summaries
+- Histograms
+- Boxplots
 - Correlation heatmap
-- Clean histograms (auto skew fix + smart bins)
-- Clean box/violin plots (outlier clipped)
-- Scaled pairplot (sampled)
-- Robust bivariate plots (smart hexbin / log1p scatter)
-- Categorical top-frequency plots
-- Z-score outlier summary
-- Cramér's V for categorical correlation
+
+Organized into subfolders for easy PDF reporting.
 """
 
 import os
+from typing import Dict, List, Tuple
+
 import numpy as np
 import pandas as pd
-import seaborn as sns
 import matplotlib.pyplot as plt
+import seaborn as sns
 
-from scipy.stats import zscore, chi2_contingency
-from sklearn.preprocessing import StandardScaler
-
-sns.set_theme(style="whitegrid")
-plt.rcParams["figure.dpi"] = 300
+sns.set(style="whitegrid")
 
 TARGET_COL = "f_FPro_class"
+ID_COLS = ["original_ID"]
 
-RAW_CATEGORICAL = ["name", "store", "food category", "brand"]
 
-NUMERIC_CANDIDATES = [
-    "price", "price percal", "package_weight",
-    "Protein", "Total Fat", "Carbohydrate", "Sugars, total",
-    "Fiber, total dietary", "Calcium", "Iron", "Sodium",
-    "Cholesterol", "Fatty acids, total saturated",
-]
-
-# ------------------------------------------------------------
-# Helpers
-# ------------------------------------------------------------
-def binary_map(series: pd.Series) -> pd.Series:
+def build_binary_target(y: pd.Series) -> pd.Series:
     """Binary target: 1 = non-UPF (0,1,2), 0 = UPF (3)."""
-    return series.map(lambda x: 0 if x == 3 else 1)
+    return y.map(lambda x: 0 if x == 3 else 1)
 
 
-def clip_outliers(series: pd.Series, lower: float = 0.01, upper: float = 0.99) -> pd.Series:
-    """Clip extreme outliers without distorting distribution."""
-    low, high = series.quantile(lower), series.quantile(upper)
-    return series.clip(lower=low, upper=high)
+def infer_feature_types(df: pd.DataFrame) -> Tuple[List[str], List[str]]:
+    """Infer numeric vs categorical feature types."""
+    numeric_cols = [
+        c for c in df.select_dtypes(include=[np.number]).columns if c != TARGET_COL
+    ]
+    categorical_cols = df.select_dtypes(include=["object"]).columns.tolist()
+    return numeric_cols, categorical_cols
 
 
-def smart_bins(series: pd.Series) -> int:
-    """Freedman–Diaconis rule for optimal histogram bin width."""
-    series = series.dropna()
-    if len(series) < 10:
-        return 10
-    iqr = series.quantile(0.75) - series.quantile(0.25)
-    if iqr == 0:
-        return 30
-    bin_width = 2 * iqr / (len(series) ** (1 / 3))
-    bins = int((series.max() - series.min()) / bin_width)
-    return max(10, min(100, bins))
+def make_output_dirs(base_dir: str) -> Dict[str, str]:
+    """Create output directory structure."""
+    subfolders = {
+        "structure": os.path.join(base_dir, "01_structure"),
+        "target": os.path.join(base_dir, "02_target_distribution"),
+        "numeric": os.path.join(base_dir, "03_numeric_statistics"),
+        "categorical": os.path.join(base_dir, "04_categorical_statistics"),
+        "plots": os.path.join(base_dir, "05_plots"),
+    }
+    for path in subfolders.values():
+        os.makedirs(path, exist_ok=True)
+    return subfolders
 
 
-def cramers_v(col1: pd.Series, col2: pd.Series) -> float:
-    """Cramér's V for categorical association."""
-    confusion = pd.crosstab(col1, col2)
-    chi2 = chi2_contingency(confusion)[0]
-    n = confusion.sum().sum()
-    phi2 = chi2 / n
-    r, k = confusion.shape
-    return np.sqrt(phi2 / max(1, min(k - 1, r - 1)))
+def run_eda(df: pd.DataFrame, outdir: str = "reports") -> Dict[str, object]:
+    """Run full EDA and save tables/plots."""
+    sns.set(style="whitegrid")
+    dirs = make_output_dirs(outdir)
+    results: Dict[str, object] = {}
 
-
-def safe_bivariate_plot(df: pd.DataFrame, x: str, y: str, outdir: str) -> None:
-    """
-    Robust bivariate plot for numeric pairs:
-    - If ranges are comparable → hexbin
-    - If extremely skewed → log1p scatter colored by binary_target
-    Avoids broken hexbins & unstable KDE.
-    """
-    if x not in df.columns or y not in df.columns:
-        return
-
-    tmp = df[[x, y, "binary_target"]].dropna()
-    if tmp.empty:
-        return
-
-    x_vals = tmp[x]
-    y_vals = tmp[y]
-
-    x_range = x_vals.max() - x_vals.min()
-    y_range = y_vals.max() - y_vals.min()
-    min_range = max(min(x_range, y_range), 1e-9)
-    ratio = max(x_range, y_range) / min_range
-
-    plt.figure(figsize=(6, 5))
-
-    # If extremely skewed → log1p scatter
-    if ratio > 25 or x_range > 5000 or y_range > 5000:
-        tmp["x_log"] = np.log1p(tmp[x])
-        tmp["y_log"] = np.log1p(tmp[y])
-        sns.scatterplot(
-            data=tmp,
-            x="x_log",
-            y="y_log",
-            hue="binary_target",
-            alpha=0.35,
-            edgecolor=None,
-        )
-        plt.xlabel(f"log1p({x})")
-        plt.ylabel(f"log1p({y})")
-        plt.title(f"Scatter (log1p): {x} vs {y}")
-        fname = f"bivar_scatter_log1p_{x}_{y}.png"
-    else:
-        hb = plt.hexbin(x_vals, y_vals, gridsize=40, cmap="viridis")
-        plt.xlabel(x)
-        plt.ylabel(y)
-        plt.title(f"Hexbin: {x} vs {y}")
-        cb = plt.colorbar(hb)
-        cb.set_label("count")
-        fname = f"bivar_hexbin_{x}_{y}.png"
-
-    plt.tight_layout()
-    plt.savefig(os.path.join(outdir, fname))
-    plt.close()
-
-
-# ------------------------------------------------------------
-# Main EDA
-# ------------------------------------------------------------
-def run_eda(df: pd.DataFrame, outdir: str = "reports") -> dict:
-    """Run full advanced EDA and write all outputs to `outdir` (flat)."""
-    os.makedirs(outdir, exist_ok=True)
-    print(f"[EDA] Running advanced EDA → {outdir}")
-
-    results: dict = {}
-
-    # Validate target
-    if TARGET_COL not in df.columns:
-        raise ValueError(f"Dataset is missing required target column: {TARGET_COL}")
-
-    numeric_cols = [c for c in NUMERIC_CANDIDATES if c in df.columns]
-    results["numeric_cols"] = numeric_cols
-
+    # ───────────────────────────────────────────────
+    # 1. Data Structure
+    # ───────────────────────────────────────────────
+    numeric_cols, categorical_cols = infer_feature_types(df)
     y_raw = df[TARGET_COL]
-    y_bin = binary_map(y_raw)
+    y_bin = build_binary_target(y_raw)
     df_tmp = df.copy()
     df_tmp["binary_target"] = y_bin
 
-    # ============================================================
-    # 1. Data structure
-    # ============================================================
     info_tbl = pd.DataFrame({
         "column": df.columns,
-        "dtype": df.dtypes.astype(str),
-        "missing_count": df.isna().sum(),
-        "missing_pct": df.isna().mean() * 100,
-        "unique_values": df.nunique(dropna=True),
+        "dtype": [df[c].dtype for c in df.columns],
+        "missing_count": [df[c].isna().sum() for c in df.columns],
+        "missing_pct": [df[c].isna().mean() * 100 for c in df.columns],
+        "unique_values": [df[c].nunique(dropna=True) for c in df.columns],
+        "role": [
+            "id" if c in ID_COLS else
+            "target" if c == TARGET_COL else
+            "numeric" if c in numeric_cols else
+            "categorical" if c in categorical_cols else
+            "other"
+            for c in df.columns
+        ],
     })
-    info_tbl.to_csv(f"{outdir}/01_structure_columns.csv", index=False)
+    info_tbl.to_csv(
+        os.path.join(dirs["structure"], "columns_overview.csv"),
+        index=False,
+    )
     results["structure"] = info_tbl
 
-    # ============================================================
-    # 2. Target distribution
-    # ============================================================
+    # ───────────────────────────────────────────────
+    # 2. Target Distribution
+    # ───────────────────────────────────────────────
     raw_counts = y_raw.value_counts().sort_index()
-    raw_counts.to_csv(f"{outdir}/02_target_raw_distribution.csv")
+    raw_counts.to_csv(
+        os.path.join(dirs["target"], "target_raw_counts.csv"), header=["count"]
+    )
     plt.figure(figsize=(6, 4))
     sns.barplot(x=raw_counts.index.astype(str), y=raw_counts.values)
     plt.title("Raw Target Distribution (f_FPro_class)")
     plt.xlabel("Class (0–3)")
-    plt.ylabel("Count")
+    plt_ylabel("Count")
     plt.tight_layout()
-    plt.savefig(f"{outdir}/02_target_raw_distribution.png")
+    plt.savefig(os.path.join(dirs["target"], "target_raw_distribution.png"))
     plt.close()
 
     bin_counts = y_bin.value_counts().sort_index()
-    bin_counts.to_csv(f"{outdir}/02_target_binary_distribution.csv")
+    bin_counts.to_csv(
+        os.path.join(dirs["target"], "target_binary_counts.csv"), header=["count"]
+    )
     plt.figure(figsize=(6, 4))
     sns.barplot(x=bin_counts.index.astype(str), y=bin_counts.values)
     plt.title("Binary Target Distribution (1 = non-UPF, 0 = UPF)")
-    plt.xlabel("Binary Class")
+    plt.xlabel("Binary class")
     plt.ylabel("Count")
-    plt.tight_layout()
-    plt.savefig(f"{outdir}/02_target_binary_distribution.png")
+    plt.tight.tight_layout()
+    plt.savefig(os.path.join(dirs["target"], "target_binary_distribution.png"))
     plt.close()
 
-    # ============================================================
-    # 3. Numeric descriptive statistics
-    # ============================================================
-    desc_overall = df[numeric_cols].describe().T
-    desc_overall.to_csv(f"{outdir}/03_descriptive_stats_overall.csv")
-    results["descriptive_overall"] = desc_overall
+    # ───────────────────────────────────────────────
+    # 3. Numeric Descriptive Statistics
+    # ───────────────────────────────────────────────
+    if numeric_cols:
+        desc_stats = df[numeric_cols].describe().T
+        desc_stats.to_csv(
+            os.path.join(dirs["numeric"], "numeric_describe_overall.csv")
+        )
+        results["numeric_describe_overall"] = desc_stats
 
-    by_class = df_tmp.groupby("binary_target")[numeric_cols].describe().T
-    by_class.to_csv(f"{outdir}/03_descriptive_stats_by_class.csv")
-    results["descriptive_by_class"] = by_class
+        by_class = df_tmp.groupby("binary_target")[numeric_cols].describe().T
+        by_class.to_csv(
+            os.path.join(dirs["numeric"], "numeric_describe_by_class.csv")
+        )
+        results["numeric_describe_by_class"] = by_class
 
-    # ============================================================
-    # 4. Missing-value heatmap (percentage per feature)
-    # ============================================================
-    missing_pct = df.isna().mean().to_frame("missing_pct")
-
-    plt.figure(figsize=(14, 3))
-    ax = sns.heatmap(
-        missing_pct.T,
-        annot=True,
-        fmt=".2%",
-        cmap="YlOrRd",
-        cbar=False,
-        linewidths=1,
-        linecolor="black",
-        annot_kws={"fontsize": 10, "color": "black"}
-    )
-
-    ax.set_yticklabels(ax.get_yticklabels(), rotation=0)
-    ax.set_xticklabels(ax.get_xticklabels(), rotation=45, ha="right")
-
-    plt.title("Missing Value Percentage per Feature", fontsize=14)
-    plt.tight_layout()
-    plt.savefig(f"{outdir}/04_missing_fixed.png")
-    plt.close()
-
-    # ============================================================
-    # 5. Correlation heatmap (numeric only)
-    # ============================================================
-    corr = df[numeric_cols].corr()
-    plt.figure(figsize=(12, 9))
-    sns.heatmap(corr, cmap="coolwarm", center=0, annot=False)
-    plt.title("Correlation Heatmap (Numeric Features)")
-    plt.tight_layout()
-    plt.savefig(f"{outdir}/05_correlation_heatmap.png")
-    plt.close()
-    results["correlation_matrix"] = corr
-
-    # ============================================================
-    # 6. Clean histograms (smart bins + optional log)
-    # ============================================================
-    for col in numeric_cols:
-        series = df[col].dropna()
-        if series.empty:
-            continue
-
-        skew_val = series.skew()
-        use_log = skew_val > 1.5 and (series > 0).sum() > 10
-        log_series = np.log1p(series) if use_log else None
-
-        # Regular histogram
-        plt.figure(figsize=(6, 4))
-        sns.histplot(series, bins=smart_bins(series), kde=True)
-        plt.title(f"Histogram: {col}")
-        plt.tight_layout()
-        plt.savefig(f"{outdir}/hist_{col.replace(' ', '_')}.png")
-        plt.close()
-
-        # Log histogram if highly skewed
-        if log_series is not None:
+        # Histograms
+        for col in numeric_cols:
             plt.figure(figsize=(6, 4))
-            sns.histplot(log_series, bins=smart_bins(log_series), kde=True)
-            plt.title(f"Log Histogram: {col}")
+            sns.histplot(df[col], bins=30)
+            plt.title(f"Histogram: {col}")
             plt.tight_layout()
-            plt.savefig(f"{outdir}/loghist_{col.replace(' ', '_')}.png")
+            plt.savefig(os.path.join(
+                dirs["plots"],
+                f"hist_{col.replace(' ', '_').replace('/', '_')}.png"))
             plt.close()
 
-    # ============================================================
-    # 7. Boxplot & violin (clipped) by binary class
-    # ============================================================
-    for col in numeric_cols:
-        clipped = clip_outliers(df_tmp[col])
+        # Boxplots
+        for col in numeric_cols:
+            plt.figure(figsize=(6, 4))
+            sns.boxplot(x=df_tmp["binary_target"], y=df_tmp[col])
+            plt.title(f"Boxplot by class: {col}")
+            plt.xlabel("Binary target (0 = UPF, 1 = non-UPF)")
+            plt.tight_layout()
+            plt.savefig(os.path.join(
+                dirs["plots"], 
+                f"box_{col.replace(' ', '_').replace('/', '_')}.png"))
+            plt.close()
 
-        plt.figure(figsize=(6, 4))
-        sns.boxplot(x=df_tmp["binary_target"], y=clipped)
-        plt.title(f"Boxplot (clipped): {col}")
-        plt.xlabel("Binary target (0 = UPF, 1 = non-UPF)")
+        # Correlation heatmap
+        corr = df[numeric_cols + [TARGET_COL]].corr()
+        corr.to_csv(os.path.join(dirs["numeric"], "correlation_matrix.csv"))
+        results["correlation"] = corr
+
+        plt.figure(figsize=(12, 8))
+        sns.heatmap(corr, annot=False, cmap="coolwarm", center=0)
+        plt.title("Correlation Heatmap")
         plt.tight_layout()
-        plt.savefig(f"{outdir}/box_{col.replace(' ', '_')}.png")
+        plt.savefig(os.path.join(dirs["plots"], "corr_heatmap.png"))
         plt.close()
 
-        plt.figure(figsize=(6, 4))
-        sns.violinplot(x=df_tmp["binary_target"], y=clipped, inner="quartile")
-        plt.title(f"Violin (clipped): {col}")
-        plt.xlabel("Binary target (0 = UPF, 1 = non-UPF)")
+    # ───────────────────────────────────────────────
+    # 4. Categorical Summaries
+    # ───────────────────────────────────────────────
+    cat_summary = {}
+    for col in categorical_cols:
+        vc = df[col].value_counts(dropna=False)
+
+        vc.to_csv(os.path.join(
+            dirs["categorical"],
+            f"{col.replace(' ', '_')}_value_counts_full.csv"
+        ))
+
+        top20 = vc.head(20)
+        top20.to_csv(os.path.join(
+            dirs["categorical"],
+            f"{col.replace(' ', '_')}_top20.csv"
+        ))
+
+        plt.figure(figsize=(8, 5))
+        sns.barplot(x=top20.values, y=top20.index.astype(str))
+        plt.title(f"Top 20: {col}")
         plt.tight_layout()
-        plt.savefig(f"{outdir}/violin_{col.replace(' ', '_')}.png")
+        plt.savefig(os.path.join(
+            dirs["plots"],
+            f"bar_top20_{col.replace(' ', '_')}.png"))
         plt.close()
 
-    # ============================================================
-    # 8. Pairplot (scaled + sampled)
-    # ============================================================
-    pp_cols = numeric_cols[:6]  # limit to first 6 numeric features
-    if len(pp_cols) >= 2:
-        sample_df = df_tmp.sample(min(300, len(df_tmp)), random_state=42)
-        try:
-            scaler = StandardScaler()
-            scaled = scaler.fit_transform(sample_df[pp_cols])
-            sample_pp = pd.DataFrame(scaled, columns=pp_cols)
-            sample_pp["binary_target"] = sample_df["binary_target"].values
+        cat_summary[col] = vc
 
-            g = sns.pairplot(
-                sample_pp,
-                hue="binary_target",
-                diag_kind="kde",
-                corner=True,
-            )
-            g.savefig(f"{outdir}/pairplot_scaled_sampled.png")
-            plt.close("all")
-        except Exception as e:
-            print(f"[EDA] Pairplot failed: {e}")
+    results["categorical"] = cat_summary
 
-    # ============================================================
-    # 9. Robust bivariate plots for selected key pairs
-    # ============================================================
-    joint_pairs = [
-        ("Protein", "Total Fat"),
-        ("Carbohydrate", "Sugars, total"),
-        ("Sodium", "Cholesterol"),
-    ]
-    for x, y in joint_pairs:
-        try:
-            safe_bivariate_plot(df_tmp, x, y, outdir)
-        except Exception as e:
-            print(f"[EDA] Bivariate plot failed for {x} vs {y}: {e}")
-
-    # ============================================================
-    # 10. Categorical top-frequencies
-    # ============================================================
-    for col in RAW_CATEGORICAL:
-        if col not in df.columns:
-            continue
-        vc = df[col].value_counts().head(20)
-        if vc.empty:
-            continue
-
-        plt.figure(figsize=(10, 5))
-        sns.barplot(x=vc.values, y=vc.index, orient="h")
-        plt.title(f"Top 20 categories: {col}")
-        plt.xlabel("Count")
-        plt.ylabel(col)
-        plt.tight_layout()
-        plt.savefig(f"{outdir}/top_{col.replace(' ', '_')}.png")
-        plt.close()
-
-    # ============================================================
-    # 11. Z-score outlier summary
-    # ============================================================
-    if numeric_cols:
-        z_df = df[numeric_cols].apply(zscore)
-        outlier_counts = (np.abs(z_df) > 3).sum(axis=1)
-        pd.DataFrame({
-            "row_index": df.index,
-            "n_outlier_features": outlier_counts,
-        }).to_csv(f"{outdir}/zscore_outliers.csv", index=False)
-
-    # ============================================================
-    # 12. Cramér’s V categorical correlation
-    # ============================================================
-    cat_results = []
-    cats = [c for c in RAW_CATEGORICAL if c in df.columns]
-    for i in range(len(cats)):
-        for j in range(i + 1, len(cats)):
-            c1, c2 = cats[i], cats[j]
-            v = cramers_v(df[c1].astype(str), df[c2].astype(str))
-            cat_results.append({"col1": c1, "col2": c2, "cramers_v": v})
-
-    if cat_results:
-        pd.DataFrame(cat_results).to_csv(f"{outdir}/cramers_v.csv", index=False)
-
-    print("\n[EDA] Advanced EDA complete.")
-    print(f"[EDA] All outputs saved → {outdir}\n")
+    print(f"[EDA] Completed. All outputs saved to '{outdir}'.")
     return results
