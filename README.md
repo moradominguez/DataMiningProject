@@ -10,10 +10,17 @@ Non–ultra-processed foods → labels `[0, 1, 2]`
 Ultra-processed foods → label `[3]`
 
 ---
-
 ##  Folder Structure
 See `src/` for preprocessing, training, and evaluation scripts.
 
 ##  How to Run
+Create environment 
+python -m venv venv
+
+install requirements
+pip install -r requirements.txt
+
+run pipeline
+
 ```bash
-python src/run_pipeline.py train.csv
+python -m src.run_pipeline product_data.csv

@@ -63,7 +63,6 @@ def smart_bins(series: pd.Series) -> int:
     bins = int((series.max() - series.min()) / bin_width)
     return max(10, min(100, bins))
 
-
 def cramers_v(col1: pd.Series, col2: pd.Series) -> float:
     """Cramér's V for categorical association."""
     confusion = pd.crosstab(col1, col2)
@@ -139,7 +138,6 @@ def infer_feature_types(df: pd.DataFrame) -> Tuple[List[str], List[str]]:
     ]
     categorical_cols = df.select_dtypes(include=["object"]).columns.tolist()
     return numeric_cols, categorical_cols
-
 
 def make_output_dirs(base_dir: str) -> Dict[str, str]:
     """
