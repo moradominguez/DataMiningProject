@@ -11,7 +11,6 @@ Full Data Science Pipeline:
 Run with:
     python -m src.run_pipeline product_data.csv
 """
-
 import os
 import pandas as pd
 from sklearn.model_selection import train_test_split

@@ -43,7 +43,6 @@ def evaluate_model(model, X_test, y_test, name, outdir="reports"):
         "roc_auc": roc_auc_score(y_test, prob) if prob is not None else None
     }
 
-
 def evaluate_all_models(X_test, y_test, model_dir="models", outdir="reports"):
     os.makedirs(outdir, exist_ok=True)
     results = []

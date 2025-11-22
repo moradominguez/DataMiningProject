@@ -101,7 +101,6 @@ def build_preprocessor_and_transform(df_train, df_val, df_test, scale=True):
     feature_names = pre.get_feature_names_out()
     return pre, feature_names, X_train, X_val, X_test
 
-
 # ─────────────────────────────
 # Outlier detection via KMeans
 # ─────────────────────────────
@@ -162,7 +161,6 @@ def detect_outliers_kmeans(df_train, reports_dir="reports", top_pct=0.05, random
     )
 
     return keep_index
-
 
 # ─────────────────────────────
 # Main training with hyperparameter search
