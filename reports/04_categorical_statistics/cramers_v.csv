@@ -1,0 +1,7 @@
+col1,col2,cramers_v
+name,store,0.9999999999999999
+name,food category,0.999897191930335
+name,brand,0.9981161685794415
+store,food category,0.302002088979281
+store,brand,0.8595027601417217
+food category,brand,0.7374493663947181

@@ -1,0 +1,20 @@
+column,dtype,missing_count,missing_pct,unique_values
+original_ID,object,0,0.0,16624
+name,object,0,0.0,16501
+store,object,0,0.0,3
+food category,object,0,0.0,49
+brand,object,42,0.2526467757459095,2397
+f_FPro_class,int64,0,0.0,4
+price,float64,0,0.0,811
+price percal,float64,0,0.0,13115
+package_weight,float64,0,0.0,1323
+Protein,float64,0,0.0,1906
+Total Fat,float64,0,0.0,2262
+Carbohydrate,float64,0,0.0,7280
+"Sugars, total",float64,8,0.04812319538017325,2311
+"Fiber, total dietary",float64,8,0.04812319538017325,1290
+Calcium,float64,0,0.0,2790
+Iron,float64,0,0.0,2192
+Sodium,float64,0,0.0,9486
+Cholesterol,float64,0,0.0,1377
+"Fatty acids, total saturated",float64,8,0.04812319538017325,1709

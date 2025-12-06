@@ -1,0 +1,5 @@
+scenario,model,split,params,accuracy,precision,recall,f1,roc_auc
+original,baseline_majority,test,{},0.7741353383458647,0.0,0.0,0.0,
+original,decision_tree,test,"{'max_depth': 7, 'min_samples_split': 2}",0.916390977443609,0.7678369195922989,0.9027962716378163,0.8298653610771114,0.952239541786812
+original,random_forest,test,"{'n_estimators': 300, 'max_depth': None}",0.9491729323308271,0.9193083573487032,0.8495339547270306,0.8830449826989619,0.9866795063199857
+original,xgboost,test,"{'n_estimators': 200, 'max_depth': 7, 'learning_rate': 0.1}",0.9627067669172933,0.9066147859922179,0.9307589880159787,0.9185282522996058,0.9922289576084515

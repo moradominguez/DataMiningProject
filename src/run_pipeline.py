@@ -68,7 +68,6 @@ def main(input_filename: str, outdir: str = "reports"):
     os.makedirs(outdir, exist_ok=True)
     os.makedirs("models", exist_ok=True)
 
-    # ✔ Look for CSV in PROJECT ROOT, not src/
     project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     input_path = os.path.join(project_root, input_filename)
 
@@ -85,61 +84,65 @@ def main(input_filename: str, outdir: str = "reports"):
     print("\n Running EDA...")
     run_eda(df, outdir)
 
-    # print("\n Splitting into train/val/test...")
-    # df_train, y_train, df_val, y_val, df_test, y_test = stratified_train_val_test_split(
-    #     df,
-    #     test_size=0.2,
-    #     val_size=0.2,
-    #     random_state=TEAM_ID,
-    # )
+    print("\n Splitting into train/val/test...")
+    df_train, y_train, df_val, y_val, df_test, y_test = stratified_train_val_test_split(
+        df,
+        test_size=0.2,
+        val_size=0.2,
+        random_state=TEAM_ID,
+    )
 
-    # # ───────── SCENARIO 1: ORIGINAL ─────────
-    # print("\n===== Scenario 1: Original Training Data =====")
-    # train_models_for_scenario(
-    #     scenario_name="original",
-    #     df_train=df_train,
-    #     y_train=y_train,
-    #     df_val=df_val,
-    #     y_val=y_val,
-    #     df_test=df_test,
-    #     y_test=y_test,
-    #     reports_dir=outdir,
-    #     model_dir="models",
-    #     random_state=TEAM_ID,
-    #     use_smote=True,
-    # )
+    print("\n[DEBUG] Split sanity check:")
+    print("  Train shape:", df_train.shape, "Fraud rate:", float(y_train.mean()))
+    print("  Val shape:  ", df_val.shape,   "Fraud rate:", float(y_val.mean()))
+    print("  Test shape: ", df_test.shape,  "Fraud rate:", float(y_test.mean()))
 
-    # # ───────── SCENARIO 2: OUTLIER REMOVAL ─────────
-    # print("\n===== Scenario 2: Removing Outliers (top 5%) =====")
-    # keep_idx = detect_outliers_kmeans(
-    #     df_train,
-    #     reports_dir=outdir,
-    #     top_pct=0.05,
-    #     random_state=TEAM_ID,
-    # )
+    print("\n===== Scenario 1: Original Training Data =====")
+    train_models_for_scenario(
+        scenario_name="original",
+        df_train=df_train,
+        y_train=y_train,
+        df_val=df_val,
+        y_val=y_val,
+        df_test=df_test,
+        y_test=y_test,
+        reports_dir=outdir,
+        model_dir="models",
+        random_state=TEAM_ID,
+        use_smote=True,
+    )
 
-    # df_train_clean = df_train.loc[keep_idx].copy()
-    # y_train_clean = build_binary_target(df_train_clean[TARGET_COL]).to_numpy()
+    print("\n===== Scenario 2: Removing Outliers (top 5%) =====")
+    keep_idx = detect_outliers_kmeans(
+        df_train,
+        reports_dir=outdir,
+        top_pct=0.05,
+        random_state=TEAM_ID,
+    )
 
-    # train_models_for_scenario(
-    #     scenario_name="outlier_removed",
-    #     df_train=df_train_clean,
-    #     y_train=y_train_clean,
-    #     df_val=df_val,
-    #     y_val=y_val,
-    #     df_test=df_test,
-    #     y_test=y_test,
-    #     reports_dir=outdir,
-    #     model_dir="models",
-    #     random_state=TEAM_ID,
-    #     use_smote=True,
-    # )
+    df_train_clean = df_train.loc[keep_idx].copy()
+    y_train_clean = build_binary_target(df_train_clean[TARGET_COL]).to_numpy()
 
-    # print("\n Pipeline Complete!")
-    # print(f" Full metrics saved to: {outdir}/model_metrics_full.csv")
-    # print(f"Compare:")
-    # print(f"- {outdir}/model_performance_test_original.csv")
-    # print(f"- {outdir}/model_performance_test_outlier_removed.csv")
+    train_models_for_scenario(
+        scenario_name="outlier_removed",
+        df_train=df_train_clean,
+        y_train=y_train_clean,
+        df_val=df_val,
+        y_val=y_val,
+        df_test=df_test,
+        y_test=y_test,
+        reports_dir=outdir,
+        model_dir="models",
+        random_state=TEAM_ID,
+        use_smote=True,
+    )
+
+    prefix = f"t{TEAM_ID:02d}_"
+    print("\n Pipeline Complete!")
+    print(f" Full metrics saved to: {outdir}/{prefix}model_metrics_full.csv")
+    print("Compare:")
+    print(f"- {outdir}/{prefix}model_performance_test_original.csv")
+    print(f"- {outdir}/{prefix}model_performance_test_outlier_removed.csv")
 
 # ─────────────────────────────────────────────────────────────
 # CLI

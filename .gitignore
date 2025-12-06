@@ -19,4 +19,7 @@ models/*.pkl
 .vscode/
 .idea/
 
-reports/
+reports/.DS_Store
+**/.DS_Store
+node_modules/
+**/node_modules/

@@ -61,6 +61,7 @@ class BaselineClassifier:
         else:
             raise ValueError("Strategy must be 'majority' or 'random'.")
 
+
 # ─────────────────────────────
 # Metrics helper
 # ─────────────────────────────
@@ -79,6 +80,7 @@ def compute_metrics(y_true, y_pred, y_prob=None):
     else:
         m["roc_auc"] = np.nan
     return m
+
 
 # ─────────────────────────────
 # Train/Val/Test preprocessing
@@ -100,6 +102,7 @@ def build_preprocessor_and_transform(df_train, df_val, df_test, scale=True):
 
     feature_names = pre.get_feature_names_out()
     return pre, feature_names, X_train, X_val, X_test
+
 
 # ─────────────────────────────
 # Outlier detection via KMeans
@@ -129,17 +132,18 @@ def detect_outliers_kmeans(df_train, reports_dir="reports", top_pct=0.05, random
         inertias.append(km.inertia_)
 
     import matplotlib.pyplot as plt
-
     plt.figure(figsize=(6, 4))
     plt.plot(list(K_range), inertias, marker="o")
     plt.xlabel("Number of clusters (k)")
     plt.ylabel("Within-cluster sum of squares")
     plt.title("KMeans Elbow Method (training set)")
     plt.tight_layout()
-    plt.savefig(f"{reports_dir}/kmeans_elbow_plot.png")
+
+    prefix = f"t{random_state:02d}_"
+    plt.savefig(f"{reports_dir}/{prefix}kmeans_elbow_plot.png")
     plt.close()
 
-    # For automation, pick a small reasonable K (assignment doesn't require fancy selection)
+    # For automation, pick a small reasonable K
     k_best = 4
     km = KMeans(n_clusters=k_best, random_state=random_state, n_init=10)
     km.fit(X_scaled)
@@ -155,12 +159,12 @@ def detect_outliers_kmeans(df_train, reports_dir="reports", top_pct=0.05, random
     keep_index = df_train.index.difference(outlier_indices)
     print(f"[Outliers] Marked {n_outliers} ({top_pct*100:.1f}%) points as outliers.")
 
-    # Optionally, save list of outliers
     pd.Series(outlier_indices, name="outlier_index").to_csv(
-        f"{reports_dir}/outliers_indices.csv", index=False
+        f"{reports_dir}/{prefix}outliers_indices.csv", index=False
     )
 
     return keep_index
+
 
 # ─────────────────────────────
 # Main training with hyperparameter search
@@ -191,16 +195,16 @@ def train_models_for_scenario(
     os.makedirs(model_dir, exist_ok=True)
 
     # Preprocess train/val/test (fit preprocessor on train only)
-    pre, feat_names, X_train_raw, X_val, X_test = build_preprocessor_and_transform(
+    _, _, X_train_raw, X_val, X_test = build_preprocessor_and_transform(
         df_train, df_val, df_test, scale=True
     )
 
-    # SMOTE only on train
-    if use_smote:
-        smote = SMOTE(random_state=random_state)
-        X_train, y_train_bal = smote.fit_resample(X_train_raw, y_train)
-    else:
-        X_train, y_train_bal = X_train_raw, y_train
+    print(
+        f"\n[DEBUG] Preprocess shapes:"
+        f"\n  X_train_raw: {X_train_raw.shape} | y_train: {len(y_train)}"
+        f"\n  X_val:       {X_val.shape} | y_val:   {len(y_val)}"
+        f"\n  X_test:      {X_test.shape} | y_test:  {len(y_test)}"
+    )
 
     results = []
 
@@ -208,7 +212,7 @@ def train_models_for_scenario(
     model_spaces = {
         "baseline_majority": {
             "model_class": BaselineClassifier,
-            "param_grid": {"strategy": ["majority"]},  # no tuning needed
+            "param_grid": {"strategy": ["majority"]},
         },
         "decision_tree": {
             "model_class": DecisionTreeClassifier,
@@ -240,42 +244,23 @@ def train_models_for_scenario(
 
         print(f"\n[Scenario: {scenario_name}] Tuning model: {model_name}")
 
-        # generate all combinations
-        param_keys = list(param_grid.keys())
-        all_param_combos = list(itertools.product(*[param_grid[k] for k in param_keys]))
-
-        best_f1_val = -1.0
-        best_model = None
-        best_params = None
-        best_probs_train = None
-        best_probs_val = None
-        best_probs_test = None
-
-        # hyperparameter search
+        # Baseline must NOT use SMOTE
         if model_name == "baseline_majority":
-            # no hyperparameters; just fit once
             model = ModelClass(strategy="majority", random_state=random_state)
-            model.fit(X_train, y_train_bal)
 
-            y_train_pred = model.predict(X_train)
+            model.fit(X_train_raw, y_train)
+            y_train_pred = model.predict(X_train_raw)
             y_val_pred = model.predict(X_val)
             y_test_pred = model.predict(X_test)
+
+            print(f"[DEBUG] Baseline lengths:\n  y_train: {len(y_train)} | y_train_pred: {len(y_train_pred)}")
 
             m_train = compute_metrics(y_train, y_train_pred)
             m_val = compute_metrics(y_val, y_val_pred)
             m_test = compute_metrics(y_test, y_test_pred)
 
-            for split, metrics in [
-                ("train", m_train),
-                ("val", m_val),
-                ("test", m_test),
-            ]:
-                row = {
-                    "scenario": scenario_name,
-                    "model": model_name,
-                    "split": split,
-                    "params": "{}",
-                }
+            for split, metrics in [("train", m_train), ("val", m_val), ("test", m_test)]:
+                row = {"scenario": scenario_name, "model": model_name, "split": split, "params": "{}"}
                 row.update(metrics)
                 results.append(row)
 
@@ -284,11 +269,35 @@ def train_models_for_scenario(
             print(f"[{model_name}] Saved → {model_path}")
             continue
 
-        # non-baseline models: tune
-        for combo in all_param_combos:
+        # SMOTE only on train for non-baseline models
+        if use_smote:
+            smote = SMOTE(random_state=random_state)
+            X_train, y_train_bal = smote.fit_resample(X_train_raw, y_train)
+        else:
+            X_train, y_train_bal = X_train_raw, y_train
+
+        print(f"[DEBUG] After SMOTE (non-baseline only):\n  X_train: {X_train.shape} | y_train_bal: {len(y_train_bal)}")
+
+        # generate all combos
+        param_keys = list(param_grid.keys())
+        all_param_combos = list(itertools.product(*[param_grid[k] for k in param_keys]))
+
+        # ✅ Speed: sample a subset for xgboost while still defining >=3 values per hyperparam
+        if model_name == "xgboost":
+            rng = np.random.RandomState(random_state)
+            if len(all_param_combos) > 10:
+                pick = rng.choice(len(all_param_combos), size=10, replace=False)
+                all_param_combos = [all_param_combos[j] for j in pick]
+
+        best_f1_val = -1.0
+        best_model = None
+        best_params = None
+
+        for i, combo in enumerate(all_param_combos, start=1):
             params = dict(zip(param_keys, combo))
 
             if model_name == "xgboost":
+                print(f"[xgboost] Fit {i}/{len(all_param_combos)} params={params}")
                 model = ModelClass(
                     **params,
                     eval_metric="logloss",
@@ -296,16 +305,13 @@ def train_models_for_scenario(
                     colsample_bytree=0.8,
                     random_state=random_state,
                     n_jobs=-1,
+                    tree_method="hist",
                 )
             else:
-                model = ModelClass(
-                    **params,
-                    random_state=random_state,
-                )
+                model = ModelClass(**params, random_state=random_state)
 
             model.fit(X_train, y_train_bal)
 
-            # evaluate on validation set for selection
             y_val_pred = model.predict(X_val)
             f1_val = f1_score(y_val, y_val_pred, zero_division=0)
 
@@ -314,42 +320,21 @@ def train_models_for_scenario(
                 best_model = model
                 best_params = params
 
-        # now evaluate best model on train/val/test in detail
+        # evaluate best model on ORIGINAL train/val/test
         y_train_pred = best_model.predict(X_train_raw)
         y_val_pred = best_model.predict(X_val)
         y_test_pred = best_model.predict(X_test)
 
-        y_train_prob = (
-            best_model.predict_proba(X_train_raw)[:, 1]
-            if hasattr(best_model, "predict_proba")
-            else None
-        )
-        y_val_prob = (
-            best_model.predict_proba(X_val)[:, 1]
-            if hasattr(best_model, "predict_proba")
-            else None
-        )
-        y_test_prob = (
-            best_model.predict_proba(X_test)[:, 1]
-            if hasattr(best_model, "predict_proba")
-            else None
-        )
+        y_train_prob = best_model.predict_proba(X_train_raw)[:, 1] if hasattr(best_model, "predict_proba") else None
+        y_val_prob = best_model.predict_proba(X_val)[:, 1] if hasattr(best_model, "predict_proba") else None
+        y_test_prob = best_model.predict_proba(X_test)[:, 1] if hasattr(best_model, "predict_proba") else None
 
         m_train = compute_metrics(y_train, y_train_pred, y_train_prob)
         m_val = compute_metrics(y_val, y_val_pred, y_val_prob)
         m_test = compute_metrics(y_test, y_test_pred, y_test_prob)
 
-        for split, metrics in [
-            ("train", m_train),
-            ("val", m_val),
-            ("test", m_test),
-        ]:
-            row = {
-                "scenario": scenario_name,
-                "model": model_name,
-                "split": split,
-                "params": str(best_params),
-            }
+        for split, metrics in [("train", m_train), ("val", m_val), ("test", m_test)]:
+            row = {"scenario": scenario_name, "model": model_name, "split": split, "params": str(best_params)}
             row.update(metrics)
             results.append(row)
 
@@ -359,8 +344,12 @@ def train_models_for_scenario(
         print(f"[{model_name}] Saved → {model_path}")
 
     df_results = pd.DataFrame(results)
-    # append to cumulative CSV
-    metrics_path = f"{reports_dir}/model_metrics_full.csv"
+
+    prefix = f"t{random_state:02d}_"
+    metrics_path = f"{reports_dir}/{prefix}model_metrics_full.csv"
+
+    # ✅ Append across scenarios (original + outlier_removed),
+    # and avoid duplicates by deleting the CSV before a fresh run.
     if os.path.exists(metrics_path):
         df_existing = pd.read_csv(metrics_path)
         df_all = pd.concat([df_existing, df_results], ignore_index=True)
@@ -368,10 +357,9 @@ def train_models_for_scenario(
         df_all = df_results
     df_all.to_csv(metrics_path, index=False)
 
-    # also save a small test-only summary for this scenario
     test_summary = df_results[df_results["split"] == "test"]
     test_summary.to_csv(
-        f"{reports_dir}/model_performance_test_{scenario_name}.csv", index=False
+        f"{reports_dir}/{prefix}model_performance_test_{scenario_name}.csv", index=False
     )
 
     return df_results
