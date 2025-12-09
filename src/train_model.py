@@ -282,7 +282,7 @@ def train_models_for_scenario(
         param_keys = list(param_grid.keys())
         all_param_combos = list(itertools.product(*[param_grid[k] for k in param_keys]))
 
-        # ✅ Speed: sample a subset for xgboost while still defining >=3 values per hyperparam
+        #  Speed: sample a subset for xgboost while still defining >=3 values per hyperparam
         if model_name == "xgboost":
             rng = np.random.RandomState(random_state)
             if len(all_param_combos) > 10:
@@ -348,7 +348,7 @@ def train_models_for_scenario(
     prefix = f"t{random_state:02d}_"
     metrics_path = f"{reports_dir}/{prefix}model_metrics_full.csv"
 
-    # ✅ Append across scenarios (original + outlier_removed),
+    # Append across scenarios (original + outlier_removed),
     # and avoid duplicates by deleting the CSV before a fresh run.
     if os.path.exists(metrics_path):
         df_existing = pd.read_csv(metrics_path)
