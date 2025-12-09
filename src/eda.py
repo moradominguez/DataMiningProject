@@ -303,7 +303,7 @@ def run_eda(df: pd.DataFrame, outdir: str = "reports") -> dict:
             plt.savefig(os.path.join(plots_dir, f"loghist_{col.replace(' ', '_')}.png"))
             plt.close()
 
-        # Boxplot & violin (NO clipping, per your choice)
+        # Boxplot & violin (NO clipping)
         plt.figure(figsize=(6, 4))
         sns.boxplot(x=df_tmp["binary_target"], y=df_tmp[col])
         plt.title(f"Boxplot: {col}")
